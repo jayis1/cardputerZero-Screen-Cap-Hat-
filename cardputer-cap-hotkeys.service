@@ -1,0 +1,13 @@
+[Unit]
+Description=M5Stack Cardputer Zero CAP Display Keyboard Hotkeys
+After=cardputer-cap-display.service
+Wants=cardputer-cap-display.service
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/python3 /usr/local/bin/cap_hotkeys.py
+Restart=on-failure
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target

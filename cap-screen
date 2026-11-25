@@ -1,0 +1,115 @@
+#!/usr/bin/env python3
+"""
+cap-screen — Command-line controller for the Cardputer Zero secondary CAP display.
+
+Examples:
+  cap-screen mirror                 # Smooth full-screen mirror of built-in screen
+  cap-screen mirror center          # 1:1 pixel-perfect centered mirror
+  cap-screen status                 # System telemetry HUD + CPU sparkline
+  cap-screen net                    # Network / Wi-Fi / RX-TX throughput HUD
+  cap-screen proc                   # Live top processes HUD
+  cap-screen clock                  # Big cyberdeck clock standby HUD
+  cap-screen log [service]          # Live scrolling journalctl feed
+  cap-screen run "ping 1.1.1.1"     # Stream any command live onto top screen
+  cap-screen watch 2 "ss -tulnp"    # Refresh command every 2s onto top screen
+  cap-screen tty                    # Interactive Linux shell (tty3) on top screen
+  cap-screen ready                  # Blank & hold ready for pygame/fbi/mpv
+  cap-screen off | on | toggle      # Sleep/wake top screen backlight
+  cap-screen next | prev            # Cycle modes
+  cap-screen menu                   # Open interactive mode picker on top screen
+  cap-screen info                   # Show current state
+  Add --save to persist a mode as the default boot mode.
+"""
+
+import json
+import os
+import socket
+import subprocess
+import sys
+
+SOCK_PATH = "/run/cap-display/ctl.sock"
+
+
+def send_ctl(payload):
+    if not os.path.exists(SOCK_PATH):
+        print("[ERR] cap_supervisor is not running. Start it with: sudo systemctl start cardputer-cap-display", file=sys.stderr)
+        sys.exit(1)
+    s = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+    s.settimeout(5.0)
+    s.connect(SOCK_PATH)
+    s.sendall((json.dumps(payload) + "\n").encode("utf-8"))
+    data = b""
+    while b"\n" not in data:
+        chunk = s.recv(4096)
+        if not chunk:
+            break
+        data += chunk
+    s.close()
+    return json.loads(data.decode("utf-8"))
+
+
+def usage():
+    print(__doc__.strip())
+
+
+def main():
+    argv = sys.argv[1:]
+    if not argv or argv[0] in ("-h", "--help", "help"):
+        usage()
+        return
+
+    save = False
+    if "--save" in argv:
+        save = True
+        argv = [a for a in argv if a != "--save"]
+
+    cmd = argv[0].lower()
+    rest = argv[1:]
+
+    if cmd == "menu":
+        # Invoke the interactive on-screen menu picker directly
+        subprocess.run(["/usr/bin/python3", "/usr/local/bin/cap_hotkeys.py", "--open-menu"], check=False)
+        return
+
+    if cmd in ("info", "on", "toggle", "next", "prev", "pause", "resume"):
+        resp = send_ctl({"action": cmd})
+    elif cmd == "mirror":
+        scale = rest[0] if rest and rest[0] in ("smooth", "nearest", "center") else None
+        fps = int(rest[1]) if len(rest) >= 2 else None
+        resp = send_ctl({"action": "set", "mode": "mirror", "scale": scale, "fps": fps, "save": save})
+    elif cmd in ("status", "net", "proc", "clock", "tty", "ready", "test", "off"):
+        resp = send_ctl({"action": "set", "mode": cmd, "save": save})
+    elif cmd == "log":
+        unit = rest[0] if rest else ""
+        resp = send_ctl({"action": "set", "mode": "log", "unit": unit, "save": save})
+    elif cmd == "run":
+        if not rest:
+            print("[ERR] Usage: cap-screen run \"<command>\"", file=sys.stderr)
+            sys.exit(2)
+        resp = send_ctl({"action": "set", "mode": "run", "cmd": " ".join(rest)})
+    elif cmd == "watch":
+        if len(rest) < 2:
+            print("[ERR] Usage: cap-screen watch <seconds> \"<command>\"", file=sys.stderr)
+            sys.exit(2)
+        interval = float(rest[0])
+        resp = send_ctl({"action": "set", "mode": "watch", "interval": interval, "cmd": " ".join(rest[1:])})
+    else:
+        print(f"[ERR] Unknown command: {cmd}", file=sys.stderr)
+        usage()
+        sys.exit(2)
+
+    if not resp.get("ok"):
+        print(f"[ERR] {resp.get('error', 'request failed')}", file=sys.stderr)
+        sys.exit(1)
+
+    if cmd == "info":
+        for k, v in resp.items():
+            if k != "ok":
+                print(f"  {k:18s}: {v}")
+    else:
+        saved_tag = " (saved as boot default)" if save else ""
+        print(f"[OK] CAP screen -> {resp.get('mode')}{saved_tag}")
+
+
+if __name__ == "__main__":
+    main()

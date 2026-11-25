@@ -1,0 +1,6 @@
+__pycache__/
+*.py[cod]
+*.dtbo
+*.bin
+fb_mirror
+this.txt

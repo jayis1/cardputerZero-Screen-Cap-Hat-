@@ -1,0 +1,14 @@
+# Stable device symlinks for secondary SPI CAP display on spi0.1
+# Matches M5Stack's internal 99-cardputer-zero-lcd.rules without touching spi0.0 (/dev/fb_lcd).
+
+# DRM card -> /dev/dri/cardputer-zero-cap
+ACTION!="remove", SUBSYSTEM=="drm", KERNEL=="card[0-9]*", SUBSYSTEMS=="spi", KERNELS=="spi0.1", \
+  SYMLINK+="dri/cardputer-zero-cap", GROUP="video", MODE="0660"
+
+# Emulated framebuffer -> /dev/fb_cap
+ACTION!="remove", SUBSYSTEM=="graphics", KERNEL=="fb[0-9]*", SUBSYSTEMS=="spi", KERNELS=="spi0.1", \
+  SYMLINK+="fb_cap", GROUP="video", MODE="0660"
+
+# Allow video/gpio group to control external backlight cleanly
+ACTION=="add", SUBSYSTEM=="backlight", KERNEL=="cap-backlight", \
+  RUN+="/bin/chgrp video /sys%p/brightness", RUN+="/bin/chmod g+w /sys%p/brightness"
