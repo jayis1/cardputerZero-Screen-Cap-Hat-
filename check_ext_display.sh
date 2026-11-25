@@ -126,7 +126,7 @@ if [[ -n "$SPI_DRV_NAME" && "$SPI_DRV_NAME" != "spidev" ]]; then
 
     # Wait briefly for udev symlink /dev/fb_cap if --ensure-ready
     if [[ $ENSURE_READY -eq 1 ]]; then
-        for _ in $(seq 1 20); do
+        for _ in $(seq 1 40); do
             [[ -e /dev/fb_cap ]] && break
             sleep 0.1
         done

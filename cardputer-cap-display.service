@@ -1,11 +1,11 @@
 [Unit]
 Description=M5Stack Cardputer Zero Secondary CAP Display Supervisor
-After=multi-user.target systemd-udev-settle.service
+After=local-fs.target systemd-udev-settle.service
 Wants=systemd-udev-settle.service
 
 [Service]
 Type=simple
-ExecStartPre=/usr/local/bin/check_ext_display.sh --ensure-ready
+ExecStartPre=/usr/local/bin/check_ext_display.sh --ensure-ready --reinit
 ExecStart=/usr/bin/python3 /usr/local/bin/cap_supervisor.py
 ExecStopPost=-/usr/bin/python3 /usr/local/bin/cap_hud.py clear
 ExecStopPost=-/bin/sh -c '[ -w /sys/class/backlight/cap-backlight/brightness ] && echo 0 > /sys/class/backlight/cap-backlight/brightness || true'
